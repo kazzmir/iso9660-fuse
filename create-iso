@@ -1,0 +1,15 @@
+#!/bin/sh
+
+make(){
+  f=$(mktemp -p test-dir)
+  dd if=/dev/urandom of=$f count=64 bs=1
+}
+
+rm -rf test-dir
+mkdir test-dir
+make
+make
+make
+make
+
+genisoimage -o test.iso test-dir
