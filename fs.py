@@ -16,7 +16,7 @@ class Directory:
     def attributes(self):
         import time
 
-        return {'st_mode': stat.S_IFDIR,
+        return {'st_mode': stat.S_IFDIR | 0o555,
                 'st_nlink': 1,
                 'st_size': 0,
                 'st_ctime': time.time(),
@@ -36,7 +36,7 @@ class File:
 
     def attributes(self):
         import time
-        return {'st_mode': stat.S_IFREG,
+        return {'st_mode': stat.S_IFREG | 0o444,
                 'st_nlink': 1,
                 'st_size': self.length,
                 'st_ctime': time.time(),
@@ -172,6 +172,11 @@ class Iso9660(fuse.Operations):
         self.fds += list(range(self.last_fd, self.last_fd + 10))
         self.last_fd += 10
         return self.fds.pop(0)
+
+    def release(self, path, handle):
+        print("release {} handle {}".format(path, handle))
+        self.fds.insert(0, handle)
+        return 0
 
     def open(self, path, flags):
         print("Open {}".format(path))

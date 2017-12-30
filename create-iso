@@ -2,7 +2,7 @@
 
 make(){
   f=$(mktemp -p $1)
-  dd if=/dev/urandom of=$f count=64 bs=1
+  dd if=/dev/urandom of=$f count=1 bs=64k
 }
 
 rm -rf test-dir
