@@ -13,9 +13,36 @@ class Directory:
         self.entries = entries
         self.data = data
 
+    def attributes(self):
+        import time
+
+        return {'st_mode': stat.S_IFDIR,
+                'st_nlink': 1,
+                'st_size': 0,
+                'st_ctime': time.time(),
+                'st_mtime': time.time(),
+                'st_atime': time.time()}
+
+
 class File:
-    def __init__(self, data):
-        pass
+    def __init__(self, iso_file, data):
+        self.iso_file = iso_file
+        self.length = lsb(data[10:10+4])
+        self.lba = lsb(data[2: 2+4])
+
+    def read(self, offset, size):
+        self.iso_file.seek(self.lba * 2 * 1024 + offset)
+        return self.iso_file.read(size)
+
+    def attributes(self):
+        import time
+        return {'st_mode': stat.S_IFREG,
+                'st_nlink': 1,
+                'st_size': self.length,
+                'st_ctime': time.time(),
+                'st_mtime': time.time(),
+                'st_atime': time.time()}
+
 
 def read_iso(iso):
     sector_size = 2 * 1024
@@ -99,7 +126,7 @@ def read_iso(iso):
                 populate_filesystem(more, iso_file.read(sector_size), lba)
                 filesystem[name.decode()] = Directory(more, data[offset:offset + length])
             else:
-                filesystem[name.decode()] = File(data[offset:offset + length])
+                filesystem[name.decode()] = File(iso_file, data[offset:offset + length])
 
             offset += length
 
@@ -114,6 +141,8 @@ def read_iso(iso):
 class Iso9660(fuse.Operations):
     def __init__(self, iso):
         self.filesystem = read_iso(iso)
+        self.fds = [0]
+        self.last_fd = 0
 
     def lookup(self, path):
         if path == '/':
@@ -137,20 +166,25 @@ class Iso9660(fuse.Operations):
 
         return out
 
+    def next_fd(self):
+        if len(self.fds) > 0:
+            return self.fds.pop(0)
+        self.fds += list(range(self.last_fd, self.last_fd + 10))
+        self.last_fd += 10
+        return self.fds.pop(0)
+
+    def open(self, path, flags):
+        print("Open {}".format(path))
+        return self.next_fd()
+
+    def read(self, path, size, offset, handle):
+        print("Read {} handle {} size {} offset {}".format(path, handle, size, offset))
+        item = self.lookup(path)
+        return item.read(offset, size)
+
     def getattr(self, path, handle=None):
         item = self.lookup(path)
-        kind = stat.S_IFDIR
-        if type(item) is File:
-            kind = stat.S_IFREG
-
-        import time
-
-        return {'st_mode': kind,
-                'st_nlink': 1,
-                'st_size': 0,
-                'st_ctime': time.time(),
-                'st_mtime': time.time(),
-                'st_atime': time.time()}
+        return item.attributes()
 
     def readdir(self, path, handle):
         print("Read dir: {}".format(path))
